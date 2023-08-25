@@ -1,13 +1,13 @@
 $(function() {
 
 	// localStorage save format versioning
-	var saveVersion = '2019.08.03';
+	const saveVersion = '24.08.2023';
+	const maxMistakes = 5;
+	const touchSupport = true;
 
-	var touchSupport = true;
+	const PuzzleModel = Backbone.Model.extend({
 
-	var PuzzleModel = Backbone.Model.extend({
-
-		defaults: function() {
+		defaults: function () {
 			return {
 				dimensionWidth: 10,		// default dimension width
 				dimensionHeight: 10,	// default dimension height
@@ -20,17 +20,19 @@ $(function() {
 				total: 100,
 				complete: false,
 				seed: 0,
-				darkMode: false,
+				forgiving: false,
+				funMode: false,
+				hardMode: false, // 
 				easyMode: true	// show crossouts
 			};
 		},
 
-		initialize: function() {
+		initialize: function () {
 			this.on('change', this.save);
 		},
 
-		save: function() {
-			if(localStorageSupport()) {
+		save: function () {
+			if (localStorageSupport()) {
 				localStorage['picross.saveVersion'] = saveVersion;
 
 				localStorage['picross.dimensionWidth'] = JSON.stringify(this.get('dimensionWidth'));
@@ -44,31 +46,35 @@ $(function() {
 				localStorage['picross.total'] = JSON.stringify(this.get('total'));
 				localStorage['picross.complete'] = JSON.stringify(this.get('complete'));
 				localStorage['picross.seed'] = JSON.stringify(this.get('seed'));
-				localStorage['picross.darkMode'] = JSON.stringify(this.get('darkMode'));
+				localStorage['picross.forgiving'] = JSON.stringify(this.get('forgiving'));
+				localStorage['picross.funMode'] = JSON.stringify(this.get('funMode'));
+				localStorage['picross.hardMode'] = JSON.stringify(this.get('hardMode'));
 				localStorage['picross.easyMode'] = JSON.stringify(this.get('easyMode'));
 			}
 		},
 
-		resume: function() {
+		resume: function () {
 
-			if(!localStorageSupport() || localStorage['picross.saveVersion'] != saveVersion) {
+			if (!localStorageSupport() || localStorage['picross.saveVersion'] !== saveVersion) {
 				this.reset();
 				return;
 			}
 
-			var dimensionWidth = JSON.parse(localStorage['picross.dimensionWidth']);
-			var dimensionHeight = JSON.parse(localStorage['picross.dimensionHeight']);
-			var solution = JSON.parse(localStorage['picross.solution']);
-			var state = JSON.parse(localStorage['picross.state']);
-			var hintsX = JSON.parse(localStorage['picross.hintsX']);
-			var hintsY = JSON.parse(localStorage['picross.hintsY']);
-			var mistakes = JSON.parse(localStorage['picross.mistakes']);
-			var guessed = JSON.parse(localStorage['picross.guessed']);
-			var total = JSON.parse(localStorage['picross.total']);
-			var complete = JSON.parse(localStorage['picross.complete']);
-			var seed = JSON.parse(localStorage['picross.seed']);
-			var darkMode = JSON.parse(localStorage['picross.darkMode']);
-			var easyMode = JSON.parse(localStorage['picross.easyMode']);
+			let dimensionWidth = JSON.parse(localStorage['picross.dimensionWidth']);
+			let dimensionHeight = JSON.parse(localStorage['picross.dimensionHeight']);
+			let solution = JSON.parse(localStorage['picross.solution']);
+			let state = JSON.parse(localStorage['picross.state']);
+			let hintsX = JSON.parse(localStorage['picross.hintsX']);
+			let hintsY = JSON.parse(localStorage['picross.hintsY']);
+			let mistakes = JSON.parse(localStorage['picross.mistakes']);
+			let guessed = JSON.parse(localStorage['picross.guessed']);
+			let total = JSON.parse(localStorage['picross.total']);
+			let complete = JSON.parse(localStorage['picross.complete']);
+			let seed = JSON.parse(localStorage['picross.seed']);
+			let forgiving = JSON.parse(localStorage['picross.forgiving']);
+			let funMode = JSON.parse(localStorage['picross.funMode']);
+			let hardMode = JSON.parse(localStorage['picross.hardMode']);
+			let easyMode = JSON.parse(localStorage['picross.easyMode']);
 
 			this.set({
 				dimensionWidth: dimensionWidth,
@@ -82,71 +88,120 @@ $(function() {
 				total: total,
 				complete: complete,
 				seed: seed,
-				darkMode: darkMode,
+				forgiving: forgiving,
+				funMode: funMode,
+				hardMode: hardMode,
 				easyMode: easyMode
 			});
 		},
 
-		reset: function(customSeed) {
-
-			var seed = customSeed;
-			if(seed === undefined) {
+		reset: function (customSeed) {
+			let streak;
+			let i;
+			let j;
+			let seed = customSeed;
+			if (seed === undefined) {
 				seed = '' + new Date().getTime();
 			}
 			Math.seedrandom(seed);
 
-			var solution = [];
-			var state = [];
-			var total = 0;
-
-			for(var i = 0; i < this.get('dimensionHeight'); i++) {
+			let solution = [];
+			let state = [];
+			let total = 0;
+			
+			const dimHeight = this.get('dimensionHeight');
+			const dimWidth = this.get('dimensionWidth');
+			let random;
+			
+			for (i = 0; i < dimHeight; i++) {
 				solution[i] = [];
 				state[i] = [];
-				for(var j = 0; j < this.get('dimensionWidth'); j++) {
-					var random = Math.ceil(Math.random() * 2);
+				for (j = 0; j < dimWidth; j++) {
+					random = Math.ceil(Math.random() * 2);
 					solution[i][j] = random;
 					total += (random - 1);
 					state[i][j] = 0;
 				}
 			}
 
-			var hintsX = [];
-			var hintsY = [];
+			if (this.get('funMode')) {
+				const offset = Math.floor(Math.random() * 3);
+				const border = Math.ceil(Math.random() * 4);
 
-			for(var i = 0; i < this.get('dimensionHeight'); i++) {
-				var streak = 0;
+				let offsetIndex = 0;
+				if (border === 1) {
+					offsetIndex = offset;
+					for (i = 0; i < dimHeight; i++) {
+						if (solution[i][offsetIndex] === 2) continue;
+						random = Math.ceil(Math.random() * 2);
+						solution[i][offsetIndex] = random;
+						total += (random - 1);
+					}
+				}
+				if (border === 2) {
+					offsetIndex = dimHeight - (offset + 1);
+					for (i = 0; i < dimHeight; i++) {
+						if (solution[i][offsetIndex] === 2) continue;
+						random = Math.ceil(Math.random() * 2);
+						solution[i][offsetIndex] = random;
+						total += (random - 1);
+					}
+				}
+				if (border === 3) {
+					offsetIndex = offset;
+					for (j = 0; j < dimWidth; j++) {
+						if (solution[offsetIndex][j] === 2) continue;
+						random = Math.ceil(Math.random() * 2);
+						solution[offsetIndex][j] = random;
+						total += (random - 1);
+					}
+				}
+				if (border === 4) {
+					offsetIndex = dimWidth - (offset + 1);
+					for (j = 0; j < dimWidth; j++) {
+						if (solution[offsetIndex][j] === 2) continue;
+						random = Math.ceil(Math.random() * 2);
+						solution[offsetIndex][j] = random;
+						total += (random - 1);
+					}
+				}
+			}
+
+			const hintsX = [];
+			const hintsY = [];
+
+			for (i = 0; i < dimHeight; i++) {
+				streak = 0;
 				hintsX[i] = [];
-				for(var j = 0; j < this.get('dimensionWidth'); j++) {
-					if(solution[i][j] === 1) {
-						if(streak > 0) {
+				for (j = 0; j < dimWidth; j++) {
+					if (solution[i][j] === 1) {
+						if (streak > 0) {
 							hintsX[i].push(streak);
 						}
 						streak = 0;
-					}
-					else {
+					} else {
 						streak++;
 					}
 				}
-				if(streak > 0) {
+				if (streak > 0) {
 					hintsX[i].push(streak);
 				}
 			}
 
-			for(var j = 0; j < this.get('dimensionWidth'); j++) {
-				var streak = 0;
+			for (j = 0; j < dimWidth; j++) {
+				streak = 0;
 				hintsY[j] = [];
-				for(var i = 0; i < this.get('dimensionHeight'); i++) {
-					if(solution[i][j] === 1) {
-						if(streak > 0) {
+				for (i = 0; i < dimHeight; i++) {
+					if (solution[i][j] === 1) {
+						if (streak > 0) {
 							hintsY[j].push(streak);
 						}
 						streak = 0;
-					}
-					else {
+					} else {
 						streak++;
 					}
 				}
-				if(streak > 0) {
+				if (streak > 0) {
 					hintsY[j].push(streak);
 				}
 			}
@@ -165,48 +220,51 @@ $(function() {
 			this.trigger('change');
 		},
 
-		guess: function(x, y, guess) {
-			var solution = this.get('solution')[x][y];
-			var state = this.get('state');
-			var hintsX = this.get('hintsX');
-			var hintsY = this.get('hintsY');
-			var mistakes = this.get('mistakes');
-			var guessed = this.get('guessed');
+		guess: function (x, y, guess) {
+			let j;
+			let streak;
+			let i;
+			const solution = this.get('solution')[x][y];
+			const state = this.get('state');
+			const hintsX = this.get('hintsX');
+			const hintsY = this.get('hintsY');
+			let mistakes = this.get('mistakes');
+			let guessed = this.get('guessed');
 
-			if(state[x][y] != 0) {
+			if (state[x][y] !== 0) {
 				// already guessed
 				return;
 			}
 
-			if(solution === guess) {
+			if (solution === guess) {
 				state[x][y] = guess;
 			} else {
 				state[x][y] = solution * -1;
 				mistakes++;
 			}
 
-			if(solution === 2) {
+			if (solution === 2) {
 				guessed++;
 			}
 
 			// cross out x -- left
-			var tracker = 0;
-			for(var i = 0; i < hintsX[x].length; i++) {
-				while(Math.abs(state[x][tracker]) === 1) {
+			let tracker = 0;
+			for (i = 0; i < hintsX[x].length; i++) {
+				while (Math.abs(state[x][tracker]) === 1) {
 					tracker++;
 				}
-				if(state[x][tracker] === 0) {
+				if (state[x][tracker] === 0) {
 					break;
 				}
-				var streak = hintsX[x][i];
-				if(streak < 0) {
+				streak = hintsX[x][i];
+				if (streak < 0) {
 					tracker += Math.abs(streak);
 					continue;
 				}
-				for(var j = 1; j <= streak; j++) {
-					if(Math.abs(state[x][tracker]) === 2) {
+				for (j = 1; j <= streak; j++) {
+					if (Math.abs(state[x][tracker]) === 2) {
 						tracker++;
-						if(j === streak && (tracker === state[0].length || Math.abs(state[x][tracker]) === 1)) {
+						if (j === streak && (tracker === state[0].length || Math.abs(state[x][tracker]) === 1)) {
 							hintsX[x][i] = streak * -1;
 						}
 					} else {
@@ -216,22 +274,22 @@ $(function() {
 			}
 			// cross out x -- right
 			tracker = state[0].length - 1;
-			for(var i = hintsX[x].length - 1; i >= 0; i--) {
-				while(Math.abs(state[x][tracker]) === 1) {
+			for (i = hintsX[x].length - 1; i >= 0; i--) {
+				while (Math.abs(state[x][tracker]) === 1) {
 					tracker--;
 				}
-				if(state[x][tracker] === 0) {
+				if (state[x][tracker] === 0) {
 					break;
 				}
-				var streak = hintsX[x][i];
-				if(streak < 0) {
+				streak = hintsX[x][i];
+				if (streak < 0) {
 					tracker -= Math.abs(streak);
 					continue;
 				}
-				for(var j = 1; j <= streak; j++) {
-					if(Math.abs(state[x][tracker]) === 2) {
+				for (j = 1; j <= streak; j++) {
+					if (Math.abs(state[x][tracker]) === 2) {
 						tracker--;
-						if(j === streak && (tracker === -1 || Math.abs(state[x][tracker]) === 1)) {
+						if (j === streak && (tracker === -1 || Math.abs(state[x][tracker]) === 1)) {
 							hintsX[x][i] = streak * -1;
 						}
 					} else {
@@ -241,22 +299,22 @@ $(function() {
 			}
 			// cross out y -- top
 			tracker = 0;
-			for(var i = 0; i < hintsY[y].length; i++) {
-				while(Math.abs(state[tracker][y]) === 1) {
+			for (i = 0; i < hintsY[y].length; i++) {
+				while (Math.abs(state[tracker][y]) === 1) {
 					tracker++;
 				}
-				if(state[tracker][y] === 0) {
+				if (state[tracker][y] === 0) {
 					break;
 				}
-				var streak = hintsY[y][i];
-				if(streak < 0) {
+				streak = hintsY[y][i];
+				if (streak < 0) {
 					tracker += Math.abs(streak);
 					continue;
 				}
-				for(var j = 1; j <= streak; j++) {
-					if(Math.abs(state[tracker][y]) === 2) {
+				for (j = 1; j <= streak; j++) {
+					if (Math.abs(state[tracker][y]) === 2) {
 						tracker++;
-						if(j === streak && (tracker === state.length || Math.abs(state[tracker][y]) === 1)) {
+						if (j === streak && (tracker === state.length || Math.abs(state[tracker][y]) === 1)) {
 							hintsY[y][i] = streak * -1;
 						}
 					} else {
@@ -266,22 +324,22 @@ $(function() {
 			}
 			// cross out y -- bottom
 			tracker = state.length - 1;
-			for(var i = hintsY[y].length - 1; i >= 0; i--) {
-				while(Math.abs(state[tracker][y]) === 1) {
+			for (i = hintsY[y].length - 1; i >= 0; i--) {
+				while (Math.abs(state[tracker][y]) === 1) {
 					tracker--;
 				}
-				if(state[tracker][y] === 0) {
+				if (state[tracker][y] === 0) {
 					break;
 				}
-				var streak = hintsY[y][i];
-				if(streak < 0) {
+				streak = hintsY[y][i];
+				if (streak < 0) {
 					tracker -= Math.abs(streak);
 					continue;
 				}
-				for(var j = 1; j <= streak; j++) {
-					if(Math.abs(state[tracker][y]) === 2) {
+				for (j = 1; j <= streak; j++) {
+					if (Math.abs(state[tracker][y]) === 2) {
 						tracker--;
-						if(j === streak && (tracker === -1 || Math.abs(state[tracker][y]) === 1)) {
+						if (j === streak && (tracker === -1 || Math.abs(state[tracker][y]) === 1)) {
 							hintsY[y][i] = streak * -1;
 						}
 					} else {
@@ -302,15 +360,17 @@ $(function() {
 
 	});
 
-	var PuzzleView = Backbone.View.extend({
+	const PuzzleView = Backbone.View.extend({
 
 		el: $("body"),
 
-		events: function() {
-			if(touchSupport && 'ontouchstart' in document.documentElement) {
+		events: function () {
+			if (touchSupport && 'ontouchstart' in document.documentElement) {
 				return {
 					"click #new": "newGame",
-					"change #dark": "changeDarkMode",
+					"change #forgiving": "changeForgiving",
+					"change #funMode": "changeFunMode",
+					"change #hardMode": "changeHardMode",
 					"change #easy": "changeEasyMode",
 					"mousedown": "clickStart",
 					"mouseover td.cell": "mouseOver",
@@ -320,23 +380,37 @@ $(function() {
 					"touchmove td.cell": "touchMove",
 					"touchend td.cell": "touchEnd",
 					"submit #customForm": "newCustom",
-					"click #seed": function(e) { e.currentTarget.select(); },
-					"click #customSeed": function(e) { e.currentTarget.select(); },
-					"contextmenu": function(e) { e.preventDefault(); }
+					"click #seed": function (e) {
+						e.currentTarget.select();
+					},
+					"click #customSeed": function (e) {
+						e.currentTarget.select();
+					},
+					"contextmenu": function (e) {
+						e.preventDefault();
+					}
 				}
 			} else {
 				return {
 					"click #new": "newGame",
-					"change #dark": "changeDarkMode",
+					"change #forgiving": "changeForgiving",
+					"change #funmode": "changeFunMode",
+					"change #hardMode": "changeHardMode",
 					"change #easy": "changeEasyMode",
 					"mousedown": "clickStart",
 					"mouseover td.cell": "mouseOver",
 					"mouseout td.cell": "mouseOut",
 					"mouseup": "clickEnd",
 					"submit #customForm": "newCustom",
-					"click #seed": function(e) { e.currentTarget.select(); },
-					"click #customSeed": function(e) { e.currentTarget.select(); },
-					"contextmenu": function(e) { e.preventDefault(); }
+					"click #seed": function (e) {
+						e.currentTarget.select();
+					},
+					"click #customSeed": function (e) {
+						e.currentTarget.select();
+					},
+					"contextmenu": function (e) {
+						e.preventDefault();
+					}
 				}
 			}
 		},
@@ -347,15 +421,25 @@ $(function() {
 		mouseEndY: -1,
 		mouseMode: 0,
 
-		initialize: function() {
+		initialize: function () {
 			this.model.resume();
 			$('#dimensions').val(this.model.get('dimensionWidth') + 'x' + this.model.get('dimensionHeight'));
-			if(this.model.get('darkMode')) {
-				$('#dark').attr('checked', 'checked');
+			if (this.model.get('forgiving')) {
+				$('#forgiving').attr('checked', 'checked');
 			} else {
-				$('#dark').removeAttr('checked');
+				$('#forgiving').removeAttr('checked');
+			}			
+			if (this.model.get('funMode')) {
+				$('#funmode').attr('checked', 'checked');
+			} else {
+				$('#funmode').removeAttr('checked');
 			}
-			if(this.model.get('easyMode')) {
+			if (this.model.get('hardMode')) {
+				$('#hardmode').attr('checked', 'checked');
+			} else {
+				$('#hardmode').removeAttr('checked');
+			}
+			if (this.model.get('easyMode')) {
 				$('#easy').attr('checked', 'checked');
 			} else {
 				$('#easy').removeAttr('checked');
@@ -364,20 +448,32 @@ $(function() {
 			this.showSeed();
 		},
 
-		changeDarkMode: function(e) {
-			var darkMode = $('#dark').attr('checked') !== undefined;
-			this.model.set({darkMode: darkMode});
+		changeForgiving: function () {
+			const forgiving = $('#forgiving').attr('checked') !== undefined;
+			this.model.set({forgiving: forgiving});
+			this.render();
+		},
+		
+		changeFunMode: function () {
+			const funMode = $('#funmode').attr('checked') !== undefined;
+			this.model.set({funMode: funMode});
 			this.render();
 		},
 
-		changeEasyMode: function(e) {
-			var easyMode = $('#easy').attr('checked') !== undefined;
+		changeHardMode: function () {
+			const hardMode = $('#hardmode').attr('checked') !== undefined;
+			this.model.set({hardMode: hardMode});
+			this.render();
+		},
+
+		changeEasyMode: function () {
+			const easyMode = $('#easy').attr('checked') !== undefined;
 			this.model.set({easyMode: easyMode});
 			this.render();
 		},
 
-		changeDimensions: function(e) {
-			var dimensions = $('#dimensions').val();
+		changeDimensions: function () {
+			let dimensions = $('#dimensions').val();
 			dimensions = dimensions.split('x');
 			this.model.set({
 				dimensionWidth: dimensions[0],
@@ -385,9 +481,10 @@ $(function() {
 			});
 		},
 
-		_newGame: function(customSeed) {
-			$('#puzzle').removeClass('complete');
-			$('#puzzle').removeClass('perfect');
+		_newGame: function (customSeed) {
+			const puzzleObj=$('#puzzle');
+			puzzleObj.removeClass('complete');
+			puzzleObj.removeClass('perfect');
 			$('#progress').removeClass('done');
 			$('#mistakes').removeClass('error');
 			this.changeDimensions();
@@ -396,35 +493,35 @@ $(function() {
 			this.showSeed();
 		},
 
-		newGame: function(e) {
+		newGame: function () {
 			$('#customSeed').val('');
 			this._newGame();
 		},
 
-		newCustom: function(e) {
+		newCustom: function (e) {
 			e.preventDefault();
 
-			var customSeed = $.trim($('#customSeed').val());
-			if(customSeed.length) {
+			const customSeed = $.trim($('#customSeed').val());
+			if (customSeed.length) {
 				this._newGame(customSeed);
 			} else {
 				this._newGame();
 			}
 		},
 
-		showSeed: function() {
-			var seed = this.model.get('seed');
+		showSeed: function () {
+			const seed = this.model.get('seed');
 			$('#seed').val(seed);
 		},
 
-		clickStart: function(e) {
-			if(this.model.get('complete')) {
+		clickStart: function (e) {
+			if (this.model.get('complete')) {
 				return;
 			}
 
-			var target = $(e.target);
+			const target = $(e.target);
 
-			if(this.mouseMode != 0 || target.attr('data-x') === undefined || target.attr('data-y') === undefined) {
+			if (this.mouseMode !== 0 || target.attr('data-x') === undefined || target.attr('data-y') === undefined) {
 				this.mouseMode = 0;
 				this.render();
 				return;
@@ -446,72 +543,75 @@ $(function() {
 			}
 		},
 
-		mouseOver: function(e) {
-			var target = $(e.currentTarget);
-			var endX = target.attr('data-x');
-			var endY = target.attr('data-y');
+		mouseOver: function (e) {
+			let i;
+			let end;
+			let start;
+			const target = $(e.currentTarget);
+			const endX = target.attr('data-x');
+			const endY = target.attr('data-y');
 			this.mouseEndX = endX;
 			this.mouseEndY = endY;
 
 			$('td.hover').removeClass('hover');
 			$('td.hoverLight').removeClass('hoverLight');
 
-			if(this.mouseMode === 0) {
+			if (this.mouseMode === 0) {
 				$('td.cell[data-y=' + endY + ']').addClass('hoverLight');
 				$('td.cell[data-x=' + endX + ']').addClass('hoverLight');
 				$('td.cell[data-x=' + endX + '][data-y=' + endY + ']').addClass('hover');
 				return;
 			}
 
-			var startX = this.mouseStartX;
-			var startY = this.mouseStartY;
+			const startX = this.mouseStartX;
+			const startY = this.mouseStartY;
 
-			if(startX === -1 || startY === -1) {
+			if (startX === -1 || startY === -1) {
 				return;
 			}
 
-			var diffX = Math.abs(endX - startX);
-			var diffY = Math.abs(endY - startY);
+			const diffX = Math.abs(endX - startX);
+			const diffY = Math.abs(endY - startY);
 
-			if(diffX > diffY) {
+			if (diffX > diffY) {
 				$('td.cell[data-x=' + endX + ']').addClass('hoverLight');
-				var start = Math.min(startX, endX);
-				var end = Math.max(startX, endX);
-				for(var i = start; i <= end; i++) {
+				start = Math.min(startX, endX);
+				end = Math.max(startX, endX);
+				for (i = start; i <= end; i++) {
 					$('td.cell[data-x=' + i + '][data-y=' + startY + ']').addClass('hover');
 				}
 			} else {
 				$('td.cell[data-y=' + endY + ']').addClass('hoverLight');
-				var start = Math.min(startY, endY);
-				var end = Math.max(startY, endY);
-				for(var i = start; i <= end; i++) {
+				start = Math.min(startY, endY);
+				end = Math.max(startY, endY);
+				for (i = start; i <= end; i++) {
 					$('td.cell[data-x=' + startX + '][data-y=' + i + ']').addClass('hover');
 				}
 			}
 		},
 
-		mouseOut: function(e) {
-			if(this.mouseMode === 0) {
+		mouseOut: function () {
+			if (this.mouseMode === 0) {
 				$('td.hover').removeClass('hover');
 				$('td.hoverLight').removeClass('hoverLight');
 			}
 		},
 
-		clickEnd: function(e) {
-			if(this.model.get('complete')) {
+		clickEnd: function (e) {
+			if (this.model.get('complete')) {
 				return;
 			}
 
-			var target = $(e.target);
+			const target = $(e.target);
 			switch (e.which) {
 				case 1:
 					// left click
 					e.preventDefault();
-					if(this.mouseMode != 1) {
+					if (this.mouseMode !== 1) {
 						this.mouseMode = 0;
 						return;
 					}
-					if(target.attr('data-x') === undefined || target.attr('data-y') === undefined) {
+					if (target.attr('data-x') === undefined || target.attr('data-y') === undefined) {
 						this.clickArea(this.mouseEndX, this.mouseEndY, 2);
 					} else {
 						this.clickArea(target.attr('data-x'), target.attr('data-y'), 2);
@@ -520,11 +620,11 @@ $(function() {
 				case 3:
 					// right click
 					e.preventDefault();
-					if(this.mouseMode != 3) {
+					if (this.mouseMode !== 3) {
 						this.mouseMode = 0;
 						return;
 					}
-					if(target.attr('data-x') === undefined || target.attr('data-y') === undefined) {
+					if (target.attr('data-x') === undefined || target.attr('data-y') === undefined) {
 						this.clickArea(this.mouseEndX, this.mouseEndY, 1);
 					} else {
 						this.clickArea(target.attr('data-x'), target.attr('data-y'), 1);
@@ -536,85 +636,88 @@ $(function() {
 			this.render();
 		},
 
-		clickArea: function(endX, endY, guess) {
-			var startX = this.mouseStartX;
-			var startY = this.mouseStartY;
+		clickArea: function (endX, endY, guess) {
+			let i;
+			const startX = this.mouseStartX;
+			const startY = this.mouseStartY;
 
-			if(startX === -1 || startY === -1) {
+			if (startX === -1 || startY === -1) {
 				return;
 			}
 
-			var diffX = Math.abs(endX - startX);
-			var diffY = Math.abs(endY - startY);
+			const diffX = Math.abs(endX - startX);
+			const diffY = Math.abs(endY - startY);
 
-			if(diffX > diffY) {
-				for(var i = Math.min(startX, endX); i <= Math.max(startX, endX); i++) {
+			if (diffX > diffY) {
+				for (i = Math.min(startX, endX); i <= Math.max(startX, endX); i++) {
 					this.model.guess(i, startY, guess);
 				}
 			} else {
-				for(var i = Math.min(startY, endY); i <= Math.max(startY, endY); i++) {
+				for (i = Math.min(startY, endY); i <= Math.max(startY, endY); i++) {
 					this.model.guess(startX, i, guess);
 				}
 			}
 		},
 
-		touchStart: function(e) {
-			if(this.model.get('complete')) {
+		touchStart: function (e) {
+			if (this.model.get('complete')) {
 				return;
 			}
-			var target = $(e.target);
+			const target = $(e.target);
 			this.mouseStartX = this.mouseEndX = e.originalEvent.touches[0].pageX;
 			this.mouseStartY = this.mouseEndY = e.originalEvent.touches[0].pageY;
-			var that = this;
-			this.mouseMode = setTimeout(function() {
+			const that = this;
+			this.mouseMode = setTimeout(function () {
 				that.model.guess(target.attr('data-x'), target.attr('data-y'), 1);
 				that.render();
 			}, 750);
 		},
 
-		touchMove: function(e) {
-			if(this.model.get('complete')) {
+		touchMove: function (e) {
+			if (this.model.get('complete')) {
 				return;
 			}
 			this.mouseEndX = e.originalEvent.touches[0].pageX;
 			this.mouseEndY = e.originalEvent.touches[0].pageY;
-			if(Math.abs(this.mouseEndX - this.mouseStartX) >= 10 || Math.abs(this.mouseEndY - this.mouseStartY) >= 10) {
+			if (Math.abs(this.mouseEndX - this.mouseStartX) >= 10 || Math.abs(this.mouseEndY - this.mouseStartY) >= 10) {
 				clearTimeout(this.mouseMode);
 			}
 		},
 
-		touchEnd: function(e) {
-			if(this.model.get('complete')) {
+		touchEnd: function (e) {
+			if (this.model.get('complete')) {
 				return;
 			}
 			clearTimeout(this.mouseMode);
-			var target = $(e.target);
-			if(Math.abs(this.mouseEndX - this.mouseStartX) < 10 && Math.abs(this.mouseEndY - this.mouseStartY) < 10) {
+			const target = $(e.target);
+			if (Math.abs(this.mouseEndX - this.mouseStartX) < 10 && Math.abs(this.mouseEndY - this.mouseStartY) < 10) {
 				this.model.guess(target.attr('data-x'), target.attr('data-y'), 2);
 				this.checkCompletion();
 				this.render();
 			}
 		},
 
-		checkCompletion: function() {
-			if(this.model.get('complete')) {
+		checkCompletion: function () {
+			let j;
+			if (this.model.get('complete')) {
 				return;
 			}
 
-			var guessed = this.model.get('guessed');
-			var total = this.model.get('total');
+			const guessed = this.model.get('guessed');
+			const total = this.model.get('total');
 
-			if(guessed === total) {
-				var hintsX = this.model.get('hintsX');
-				var hintsY = this.model.get('hintsY');
+			if (guessed === total) {
+				let i;
+				const hintsX = this.model.get('hintsX');
+				const hintsY = this.model.get('hintsY');
 
-				for(var i = 0; i < hintsX.length; i++) {
-					for(var j = 0; j < hintsX[i].length; j++) {
+				for (i = 0; i < hintsX.length; i++) {
+					for (j = 0; j < hintsX[i].length; j++) {
 						hintsX[i][j] = Math.abs(hintsX[i][j]) * -1;
 					}
 				}
-				for(var i = 0; i < hintsY.length; i++) {
-					for(var j = 0; j < hintsY[i].length; j++) {
+				for (i = 0; i < hintsY.length; i++) {
+					for (j = 0; j < hintsY[i].length; j++) {
 						hintsY[i][j] = Math.abs(hintsY[i][j]) * -1;
 					}
 				}
@@ -627,51 +730,61 @@ $(function() {
 			}
 		},
 
-		render: function() {
-			var mistakes = this.model.get('mistakes');
-			$('#mistakes').text(mistakes);
-			if(mistakes > 0) {
-				$('#mistakes').addClass('error');
+		render: function () {
+			let j;
+			let i;
+			const mistakes = this.model.get('mistakes');
+			let format= `${mistakes}`;
+			if (this.model.get('forgiving')) {
+				format= `${mistakes} (${maxMistakes})`;
+			}
+			const mistakesObj=$('#mistakes');
+			mistakesObj.text(format);
+		
+			if (mistakes > 0) {
+				mistakesObj.addClass('error');
 			}
 
-			var progress = this.model.get('guessed') / this.model.get('total') * 100;
-			$('#progress').text(progress.toFixed(1) + '%');
-
-			if(this.model.get('darkMode')) {
-				$('body').addClass('dark');
-			} else {
-				$('body').removeClass('dark');
-			}
-
-			if(this.model.get('complete')) {
-				$('#puzzle').addClass('complete');
-				$('#progress').addClass('done');
-				if(mistakes === 0) {
-					$('#puzzle').addClass('perfect');
+			const progress = this.model.get('guessed') / this.model.get('total') * 100;
+			const progressObj=$('#progress');
+			progressObj.text(progress.toFixed(1) + '%');
+			
+			const puzzleObj=$('#puzzle');
+			if (this.model.get('complete')) {
+				puzzleObj.addClass('complete');
+				progressObj.addClass('done');
+				if (this.model.get('forgiving')) {
+					if (mistakes <= maxMistakes) {
+						puzzleObj.addClass('perfect');
+					}
+				} else {
+					if (mistakes === 0) {
+						puzzleObj.addClass('perfect');
+					}
 				}
 			}
 
-			var state = this.model.get('state');
-			var hintsX = this.model.get('hintsX');
-			var hintsY = this.model.get('hintsY');
+			const state = this.model.get('state');
+			const hintsX = this.model.get('hintsX');
+			const hintsY = this.model.get('hintsY');
 
-			var hintsXText = [];
-			var hintsYText = [];
-			if(this.model.get('easyMode')) {
-				for(var i = 0; i < hintsX.length; i++) {
+			const hintsXText = [];
+			const hintsYText = [];
+			if (this.model.get('easyMode')) {
+				for (i = 0; i < hintsX.length; i++) {
 					hintsXText[i] = [];
-					for(var j = 0; j < hintsX[i].length; j++) {
-						if(hintsX[i][j] < 0) {
+					for (j = 0; j < hintsX[i].length; j++) {
+						if (hintsX[i][j] < 0) {
 							hintsXText[i][j] = '<em>' + Math.abs(hintsX[i][j]) + '</em>';
 						} else {
 							hintsXText[i][j] = hintsX[i][j];
 						}
 					}
 				}
-				for(var i = 0; i < hintsY.length; i++) {
+				for (i = 0; i < hintsY.length; i++) {
 					hintsYText[i] = [];
-					for(var j = 0; j < hintsY[i].length; j++) {
-						if(hintsY[i][j] < 0) {
+					for (j = 0; j < hintsY[i].length; j++) {
+						if (hintsY[i][j] < 0) {
 							hintsYText[i][j] = '<em>' + Math.abs(hintsY[i][j]) + '</em>';
 						} else {
 							hintsYText[i][j] = hintsY[i][j];
@@ -679,31 +792,31 @@ $(function() {
 					}
 				}
 			} else {
-				for(var i = 0; i < hintsX.length; i++) {
+				for (i = 0; i < hintsX.length; i++) {
 					hintsXText[i] = [];
-					for(var j = 0; j < hintsX[i].length; j++) {
+					for (j = 0; j < hintsX[i].length; j++) {
 						hintsXText[i][j] = Math.abs(hintsX[i][j]);
 					}
 				}
-				for(var i = 0; i < hintsY.length; i++) {
+				for (i = 0; i < hintsY.length; i++) {
 					hintsYText[i] = [];
-					for(var j = 0; j < hintsY[i].length; j++) {
+					for (j = 0; j < hintsY[i].length; j++) {
 						hintsYText[i][j] = Math.abs(hintsY[i][j]);
 					}
 				}
 			}
 
-			var html = '<table>';
+			let html = '<table>';
 			html += '<tr><td class="key"></td>';
-			for(var i = 0; i < state[0].length; i++) {
+			for (i = 0; i < state[0].length; i++) {
 				html += '<td class="key top">' + hintsYText[i].join('<br/>') + '</td>';
 			}
 			html += '</tr>';
-			for(var i = 0; i < state.length; i++) {
+			for (i = 0; i < state.length; i++) {
 				html += '<tr><td class="key left">' + hintsXText[i].join('&nbsp;') + '</td>';
-				for(var j = 0; j < state[0].length; j++) {
+				for (j = 0; j < state[0].length; j++) {
 					html += '<td class="cell s' + Math.abs(state[i][j]) + '" data-x="' + i + '" data-y="' + j + '">';
-					if(state[i][j] < 0) {
+					if (state[i][j] < 0) {
 						html += 'X'; //&#9785;
 					}
 					html += '</td>';
@@ -712,9 +825,9 @@ $(function() {
 			}
 			html += '</table>';
 
-			$('#puzzle').html(html);
+			puzzleObj.html(html);
 
-			var side = (600 - (state[0].length * 5)) / state[0].length;
+			const side = (600 - (state[0].length * 5)) / state[0].length;
 			$('#puzzle td.cell').css({
 				width: side,
 				height: side,
