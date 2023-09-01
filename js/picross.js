@@ -1,16 +1,36 @@
 $(function() {
-
+	const State = {
+		Nothing: 0,
+		Free: 1,
+		NoFree: -1,
+		Tile: 2,
+		NoTile: -2,
+		isGuessedWrong: (a) => {
+			return a < 0;
+		},
+		isGuessedRight: (a) => {
+			return a > 0;
+		},
+		wasGuessed: (a) => {
+			return a === 0;
+		},
+		random: (tileThreshold) => {
+			if (tileThreshold === undefined) tileThreshold = 0.5;
+			return (Math.random() >= tileThreshold) ? State.Free : State.Tile;
+		}
+	}
+	
 	// localStorage save format versioning
 	const saveVersion = '24.08.2023';
-	const maxMistakes = 5;
+	const maxMistakes = 3;
 	const touchSupport = true;
 
 	const PuzzleModel = Backbone.Model.extend({
 
 		defaults: function () {
 			return {
-				dimensionWidth: 10,		// default dimension width
-				dimensionHeight: 10,	// default dimension height
+				dimensionWidth: 10,	
+				dimensionHeight: 10,
 				solution: [],
 				state: [],
 				hintsX: [],
@@ -22,8 +42,8 @@ $(function() {
 				seed: 0,
 				forgiving: false,
 				funMode: false,
-				hardMode: false, // 
-				easyMode: true	// show crossouts
+				hardMode: false, 
+				easyMode: true	
 			};
 		},
 
@@ -117,14 +137,15 @@ $(function() {
 				solution[i] = [];
 				state[i] = [];
 				for (j = 0; j < dimWidth; j++) {
-					random = Math.ceil(Math.random() * 2);
+					random = State.random();
 					solution[i][j] = random;
 					total += (random - 1);
-					state[i][j] = 0;
+					state[i][j] = State.Nothing;
 				}
 			}
 
 			if (this.get('funMode')) {
+				let added = 0;
 				const offset = Math.floor(Math.random() * 3);
 				const border = Math.ceil(Math.random() * 4);
 
@@ -132,38 +153,50 @@ $(function() {
 				if (border === 1) {
 					offsetIndex = offset;
 					for (i = 0; i < dimHeight; i++) {
-						if (solution[i][offsetIndex] === 2) continue;
-						random = Math.ceil(Math.random() * 2);
+						if (solution[i][offsetIndex] === State.Tile) continue;
+						random = State.random();
 						solution[i][offsetIndex] = random;
-						total += (random - 1);
+						added += (random - 1);
 					}
 				}
 				if (border === 2) {
 					offsetIndex = dimHeight - (offset + 1);
 					for (i = 0; i < dimHeight; i++) {
-						if (solution[i][offsetIndex] === 2) continue;
-						random = Math.ceil(Math.random() * 2);
+						if (solution[i][offsetIndex] === State.Tile) continue;
+						random = State.random();
 						solution[i][offsetIndex] = random;
-						total += (random - 1);
+						added += (random - 1);
 					}
 				}
 				if (border === 3) {
 					offsetIndex = offset;
 					for (j = 0; j < dimWidth; j++) {
-						if (solution[offsetIndex][j] === 2) continue;
-						random = Math.ceil(Math.random() * 2);
+						if (solution[offsetIndex][j] === State.Tile) continue;
+						random = State.random();
 						solution[offsetIndex][j] = random;
-						total += (random - 1);
+						added += (random - 1);
 					}
 				}
 				if (border === 4) {
 					offsetIndex = dimWidth - (offset + 1);
 					for (j = 0; j < dimWidth; j++) {
-						if (solution[offsetIndex][j] === 2) continue;
-						random = Math.ceil(Math.random() * 2);
+						if (solution[offsetIndex][j] === State.Tile) continue;
+						random = State.random();
 						solution[offsetIndex][j] = random;
-						total += (random - 1);
+						added += (random - 1);
 					}
+				}
+
+				//cleanup
+				for (let i = 0; i < added * 5; i++) {
+					let x = Math.floor(Math.random() * dimHeight);
+					let y = Math.floor(Math.random() * dimWidth);
+					
+					if (solution[x][y] === State.Tile){
+						added--;
+						solution[x][y] = State.Nothing;
+					}
+					if(added <= 0 )break;
 				}
 			}
 
@@ -174,7 +207,7 @@ $(function() {
 				streak = 0;
 				hintsX[i] = [];
 				for (j = 0; j < dimWidth; j++) {
-					if (solution[i][j] === 1) {
+					if (solution[i][j] === State.Free) {
 						if (streak > 0) {
 							hintsX[i].push(streak);
 						}
@@ -192,7 +225,7 @@ $(function() {
 				streak = 0;
 				hintsY[j] = [];
 				for (i = 0; i < dimHeight; i++) {
-					if (solution[i][j] === 1) {
+					if (solution[i][j] === State.Free) {
 						if (streak > 0) {
 							hintsY[j].push(streak);
 						}
@@ -612,7 +645,7 @@ $(function() {
 						return;
 					}
 					if (target.attr('data-x') === undefined || target.attr('data-y') === undefined) {
-						this.clickArea(this.mouseEndX, this.mouseEndY, 2);
+						this.clickArea(this.mouseEndX, this.mouseEndY, State.Tile);
 					} else {
 						this.clickArea(target.attr('data-x'), target.attr('data-y'), 2);
 					}
@@ -625,7 +658,7 @@ $(function() {
 						return;
 					}
 					if (target.attr('data-x') === undefined || target.attr('data-y') === undefined) {
-						this.clickArea(this.mouseEndX, this.mouseEndY, 1);
+						this.clickArea(this.mouseEndX, this.mouseEndY, State.Free);
 					} else {
 						this.clickArea(target.attr('data-x'), target.attr('data-y'), 1);
 					}
@@ -668,7 +701,7 @@ $(function() {
 			this.mouseStartY = this.mouseEndY = e.originalEvent.touches[0].pageY;
 			const that = this;
 			this.mouseMode = setTimeout(function () {
-				that.model.guess(target.attr('data-x'), target.attr('data-y'), 1);
+				that.model.guess(target.attr('data-x'), target.attr('data-y'), State.Free);
 				that.render();
 			}, 750);
 		},
@@ -691,7 +724,7 @@ $(function() {
 			clearTimeout(this.mouseMode);
 			const target = $(e.target);
 			if (Math.abs(this.mouseEndX - this.mouseStartX) < 10 && Math.abs(this.mouseEndY - this.mouseStartY) < 10) {
-				this.model.guess(target.attr('data-x'), target.attr('data-y'), 2);
+				this.model.guess(target.attr('data-x'), target.attr('data-y'), State.Tile);
 				this.checkCompletion();
 				this.render();
 			}
@@ -837,7 +870,6 @@ $(function() {
 	});
 
 	new PuzzleView({model: new PuzzleModel()});
-
 });
 
 function localStorageSupport() {
