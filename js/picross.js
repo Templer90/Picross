@@ -1,10 +1,13 @@
 $(function() {
 	const State = {
 		Nothing: 0,
+		
 		Free: 1,
 		NoFree: -1,
+		
 		Tile: 2,
 		NoTile: -2,
+		
 		isGuessedWrong: (a) => {
 			return a < 0;
 		},
@@ -115,6 +118,68 @@ $(function() {
 			});
 		},
 
+		doFunmode: function (solution){
+			let i;
+			let j;
+			let added = 0;
+			const offset = Math.floor(Math.random() * 3);
+			const border = Math.ceil(Math.random() * 4);
+
+			const dimHeight = this.get('dimensionHeight');
+			const dimWidth = this.get('dimensionWidth');
+			let random;
+
+			let offsetIndex = 0;
+			if (border === 1) {
+				offsetIndex = offset;
+				for (i = 0; i < dimHeight; i++) {
+					if (solution[i][offsetIndex] === State.Tile) continue;
+					random = State.random();
+					solution[i][offsetIndex] = random;
+					added += (random - 1);
+				}
+			}
+			if (border === 2) {
+				offsetIndex = dimHeight - (offset + 1);
+				for (i = 0; i < dimHeight; i++) {
+					if (solution[i][offsetIndex] === State.Tile) continue;
+					random = State.random();
+					solution[i][offsetIndex] = random;
+					added += (random - 1);
+				}
+			}
+			if (border === 3) {
+				offsetIndex = offset;
+				for (j = 0; j < dimWidth; j++) {
+					if (solution[offsetIndex][j] === State.Tile) continue;
+					random = State.random();
+					solution[offsetIndex][j] = random;
+					added += (random - 1);
+				}
+			}
+			if (border === 4) {
+				offsetIndex = dimWidth - (offset + 1);
+				for (j = 0; j < dimWidth; j++) {
+					if (solution[offsetIndex][j] === State.Tile) continue;
+					random = State.random();
+					solution[offsetIndex][j] = random;
+					added += (random - 1);
+				}
+			}
+
+			//cleanup
+			for (let i = 0; i < added * 5; i++) {
+				let x = Math.floor(Math.random() * dimHeight);
+				let y = Math.floor(Math.random() * dimWidth);
+
+				if (solution[x][y] === State.Tile){
+					added--;
+					solution[x][y] = State.Free;
+				}
+				if(added <= 0 )break;
+			}
+		},
+		
 		reset: function (customSeed) {
 			let streak;
 			let i;
@@ -145,59 +210,7 @@ $(function() {
 			}
 
 			if (this.get('funMode')) {
-				let added = 0;
-				const offset = Math.floor(Math.random() * 3);
-				const border = Math.ceil(Math.random() * 4);
-
-				let offsetIndex = 0;
-				if (border === 1) {
-					offsetIndex = offset;
-					for (i = 0; i < dimHeight; i++) {
-						if (solution[i][offsetIndex] === State.Tile) continue;
-						random = State.random();
-						solution[i][offsetIndex] = random;
-						added += (random - 1);
-					}
-				}
-				if (border === 2) {
-					offsetIndex = dimHeight - (offset + 1);
-					for (i = 0; i < dimHeight; i++) {
-						if (solution[i][offsetIndex] === State.Tile) continue;
-						random = State.random();
-						solution[i][offsetIndex] = random;
-						added += (random - 1);
-					}
-				}
-				if (border === 3) {
-					offsetIndex = offset;
-					for (j = 0; j < dimWidth; j++) {
-						if (solution[offsetIndex][j] === State.Tile) continue;
-						random = State.random();
-						solution[offsetIndex][j] = random;
-						added += (random - 1);
-					}
-				}
-				if (border === 4) {
-					offsetIndex = dimWidth - (offset + 1);
-					for (j = 0; j < dimWidth; j++) {
-						if (solution[offsetIndex][j] === State.Tile) continue;
-						random = State.random();
-						solution[offsetIndex][j] = random;
-						added += (random - 1);
-					}
-				}
-
-				//cleanup
-				for (let i = 0; i < added * 5; i++) {
-					let x = Math.floor(Math.random() * dimHeight);
-					let y = Math.floor(Math.random() * dimWidth);
-					
-					if (solution[x][y] === State.Tile){
-						added--;
-						solution[x][y] = State.Nothing;
-					}
-					if(added <= 0 )break;
-				}
+				this.doFunmode(solution);
 			}
 
 			const hintsX = [];
